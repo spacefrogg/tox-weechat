@@ -79,21 +79,32 @@ twc_connection_status_callback(Tox *tox, uint32_t friend_number,
 {
     struct t_twc_profile *profile = data;
     char *name = twc_get_name_nt(profile->tox, friend_number);
+    struct t_gui_nick *nick = weechat_nicklist_search_nick(profile->buffer,
+                                                           NULL,
+                                                           name);
 
     // TODO: print in friend's buffer if it exists
     if (status == 0)
     {
         weechat_printf(profile->buffer,
                        "%s%s just went offline.",
-                       weechat_prefix("network"),
+                       weechat_prefix("quit"),
                        name);
+        if (nick)
+            weechat_nicklist_nick_set(profile->buffer,
+                                      nick,
+                                      "visible", "0");
     }
     else if (status == 1)
     {
         weechat_printf(profile->buffer,
                        "%s%s just came online.",
-                       weechat_prefix("network"),
+                       weechat_prefix("join"),
                        name);
+        if (nick)
+            weechat_nicklist_nick_set(profile->buffer,
+                                      nick,
+                                      "visible", "1");
         twc_message_queue_flush_friend(profile, friend_number);
     }
     free(name);
@@ -111,6 +122,12 @@ twc_name_change_callback(Tox *tox, uint32_t friend_number,
 
     char *old_name = twc_get_name_nt(profile->tox, friend_number);
     char *new_name = twc_null_terminate(name, length);
+    struct t_gui_nick *old_nick = weechat_nicklist_search_nick(profile->buffer,
+                                                               NULL,
+                                                               old_name);
+    struct t_gui_nick *new_nick = weechat_nicklist_search_nick(profile->buffer,
+                                                               NULL,
+                                                               new_name);
 
     if (strcmp(old_name, new_name) != 0)
     {
@@ -122,12 +139,24 @@ twc_name_change_callback(Tox *tox, uint32_t friend_number,
                            "%s%s is now known as %s",
                            weechat_prefix("network"),
                            old_name, new_name);
+            
         }
 
         weechat_printf(profile->buffer,
                        "%s%s is now known as %s",
                        weechat_prefix("network"),
                        old_name, new_name);
+        int visible = 0;
+        if (old_nick)
+        {
+            weechat_nicklist_remove_nick(profile->buffer, old_nick);
+            visible = weechat_nicklist_nick_get_integer(profile->buffer,
+                                                        old_nick,
+                                                        "visible");
+        }
+        if (!new_nick)
+            weechat_nicklist_add_nick(profile->buffer, NULL, new_name,
+                                      NULL, NULL, NULL, visible);
     }
 
     free(old_name);

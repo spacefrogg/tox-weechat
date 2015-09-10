@@ -302,10 +302,10 @@ twc_profile_load(struct t_twc_profile *profile)
 						 twc_profile_buffer_close_callback, profile);
 	    if (!(profile->buffer))
 		return TWC_RC_ERROR;
-	    profile->nicklist = weechat_nicklist_group_add(profile->buffer,
-		NULL, NULL, NULL, true);
+	    profile->nicklist = weechat_nicklist_add_group(profile->buffer,
+                                                           NULL, "friends", NULL, 0);
 	    if (!(profile->nicklist))
-		return TWC_RC_ERROR;
+                return TWC_RC_ERROR;
         }
 	else
 	    profile->buffer = weechat_buffer_new(profile->name,
@@ -447,19 +447,25 @@ twc_profile_load(struct t_twc_profile *profile)
     // register all known friends in nicklist
     if (TWC_PROFILE_OPTION_BOOLEAN(profile, TWC_PROFILE_OPTION_CHAT_IN_PROFILE))
     {
-	size_t friend_count = tox_self_get_friend_list_size(profile->tox);
-	uint32_t friend_numbers[friend_count];
-	tox_self_get_friend_list(profile->tox, friend_numbers);
-	for (size_t i = 0; i < friend_count; ++i)
-	{
-	    uint32_t friend_number = friend_numbers[i];
-	    char *name = twc_get_name_nt(profile->tox, friend_number);
-	    if (name && strlen(name) == 0)
-	    {
-		free(name);
-		name = twc_get_friend_id_short(profile->tox, friend_number);
-	    }// TODO: complete
-	}
+        size_t friend_count = tox_self_get_friend_list_size(profile->tox);
+        uint32_t friend_numbers[friend_count];
+        if (!(profile->nicklist))
+            return TWC_RC_ERROR;
+
+        tox_self_get_friend_list(profile->tox, friend_numbers);
+
+        for (size_t i = 0; i < friend_count; ++i)
+        {
+            uint32_t friend_number = friend_numbers[i];
+            char *name = twc_get_name_nt(profile->tox, friend_number);
+            struct t_gui_nick *nick;
+            nick = weechat_nicklist_add_nick(profile->buffer,
+                                             profile->nicklist,
+                                             name, NULL, NULL, NULL, 0);
+            free(name);
+            if (!nick)
+                return TWC_RC_ERROR;
+        }
     }
 
     // register Tox callbacks

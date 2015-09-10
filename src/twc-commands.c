@@ -936,6 +936,95 @@ twc_cmd_name(void *data, struct t_gui_buffer *buffer,
     return WEECHAT_RC_OK;
 }
 
+static void
+realloc_buf(char **buf, char **buf_pos, size_t *size)
+{
+    const size_t chunk_size = 1000;
+    size_t len;
+    char *old_buf;
+    if (!*buf)
+    {
+        *size = chunk_size;
+        *buf = (char *)malloc(*size);
+        *buf_pos = *buf;
+        return;
+    }
+    len = strlen(*buf);
+    old_buf = *buf;
+    *size = ((len % chunk_size) + 2) * chunk_size;
+    *buf = (char *)realloc(old_buf, *size);
+    *buf_pos = *buf + len;
+    return;
+}
+
+/**
+ * Command /names callback.
+ */
+int
+twc_cmd_names(void *data, struct t_gui_buffer *buffer,
+              int argc, char **argv, char **argv_eol)
+{
+    struct t_gui_nick_group *nicklist = NULL;
+    struct t_gui_nick *nick = NULL;
+    char *buf = NULL;
+    char *buf_pos = buf;
+    size_t buf_size;
+    size_t nick_count = 0;
+    bool show_all = false;
+    if (!weechat_strcasecmp(argv[1], "-all"))
+        show_all = true;
+
+    realloc_buf(&buf, &buf_pos, &buf_size);
+    if (!buf)
+        return WEECHAT_RC_ERROR;
+
+
+    sprintf(buf, "Nicks %s: %s[%s", weechat_buffer_get_string(buffer, "name"),
+        weechat_color("green"), weechat_color("reset"));
+    buf_pos = &buf[strlen(buf)];
+
+    weechat_nicklist_get_next_item(buffer, &nicklist, &nick);
+    
+    while (nick || nicklist)
+    {
+        if (nick)
+        {
+            int online = weechat_nicklist_nick_get_integer(buffer, nick, "visible");
+            if (!online && !show_all)
+            {
+                weechat_nicklist_get_next_item(buffer, &nicklist, &nick);
+                continue;
+            }    
+            ++nick_count;
+            char *name = weechat_nicklist_nick_get_string(buffer, nick, "name");
+                
+            if ((buf + buf_size) < (buf_pos + strlen(name) + 1))
+            {
+                realloc_buf(&buf, &buf_pos, &buf_size);
+                if (!buf)
+                    return WEECHAT_RC_ERROR;
+                continue;
+            }
+            buf_pos += sprintf(buf_pos, "%s ", name);
+        }
+        weechat_nicklist_get_next_item(buffer, &nicklist, &nick);
+    }
+    --buf_pos;
+    if ((buf + buf_size) < (buf_pos + 10))
+    {
+        realloc_buf(&buf, &buf_pos, &buf_size);
+        if (!buf)
+            return WEECHAT_RC_ERROR;
+    }
+    sprintf(buf_pos, "%s]%s", weechat_color("green"), weechat_color("reset"));
+    weechat_printf(buffer, "%s%s", weechat_prefix("network"), buf);
+    weechat_printf(buffer, "%sChannel %s: %d nicks", weechat_prefix("network"),
+                   weechat_buffer_get_string(buffer, "name"),
+                   nick_count);
+    free(buf);
+    return WEECHAT_RC_OK;
+}
+
 /**
  * Command /nospam callback.
  */
@@ -1162,7 +1251,7 @@ twc_cmd_topic(void *data, struct t_gui_buffer *buffer,
  */
 int
 twc_cmd_tox(void *data, struct t_gui_buffer *buffer,
-                    int argc, char **argv, char **argv_eol)
+            int argc, char **argv, char **argv_eol)
 {
     // /tox [list]
     if (argc == 1 || (argc == 2 && weechat_strcasecmp(argv[1], "list") == 0))
@@ -1370,6 +1459,12 @@ twc_commands_init()
                          "<name>",
                          "name: your new name",
                          NULL, twc_cmd_name, NULL);
+
+    weechat_hook_command("names",
+                         "list names in buffer",
+                         "-all",
+                         "",
+                         NULL, twc_cmd_names, NULL);
 
     weechat_hook_command("nospam",
                          "change nospam value",
