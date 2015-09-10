@@ -49,6 +49,7 @@ char *twc_profile_option_names[TWC_PROFILE_NUM_OPTIONS] =
     "udp",
     "ipv6",
     "passphrase",
+    "chat_in_profile",
 };
 
 /**
@@ -195,19 +196,25 @@ twc_config_init_option(struct t_config_section *section,
         case TWC_PROFILE_OPTION_AUTOLOAD:
             type = "boolean";
             description = "automatically load profile and connect to the Tox "
-                          "network when WeeChat starts";
+		"network when WeeChat starts";
             default_value = "off";
             break;
+	case TWC_PROFILE_OPTION_CHAT_IN_PROFILE:
+	    type = "boolean";
+	    description = "enable IRC highlight-style chat in profile buffer "
+		"by prefixing messages with friend name";
+	    default_value = "off";
+	    break;
         case TWC_PROFILE_OPTION_IPV6:
             type = "boolean";
             description = "use IPv6 as well as IPv4 to connect to the Tox "
-                          "network";
+		"network";
             default_value = "on";
             break;
         case TWC_PROFILE_OPTION_MAX_FRIEND_REQUESTS:
             type = "integer";
             description = "maximum amount of friend requests to retain before "
-                          "ignoring new ones";
+		"ignoring new ones";
             min = 0; max = INT_MAX;
             default_value = "100";
             break;
@@ -237,7 +244,7 @@ twc_config_init_option(struct t_config_section *section,
         case TWC_PROFILE_OPTION_SAVEFILE:
             type = "string";
             description = "path to Tox data file (\"%h\" will be replaced by "
-                          "WeeChat home folder and \"%p\" by profile name";
+		"WeeChat home folder and \"%p\" by profile name";
             default_value = "%h/tox/%p";
             break;
         case TWC_PROFILE_OPTION_UDP:

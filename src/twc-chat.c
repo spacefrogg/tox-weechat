@@ -107,9 +107,15 @@ twc_chat_new_friend(struct t_twc_profile *profile, int32_t friend_number)
     tox_friend_get_public_key(profile->tox, friend_number, client_id, &err);
     if (err != TOX_ERR_FRIEND_GET_PUBLIC_KEY_OK)
       return NULL;
+    char *client_name = twc_get_name_nt(profile->tox, friend_number);
+    if (!client_name)
+      client_name = "";
 
-    char buffer_name[TOX_PUBLIC_KEY_SIZE * 2 + 1];
-    twc_bin2hex(client_id, TOX_PUBLIC_KEY_SIZE, buffer_name);
+    char buffer_name[TOX_PUBLIC_KEY_SIZE * 2 + strlen(client_name) + 2];
+    char *buf_pos = buffer_name;
+    buf_pos = stpcpy(buf_pos, client_name);
+    buf_pos = stpcpy(buf_pos, ":");
+    twc_bin2hex(client_id, TOX_PUBLIC_KEY_SIZE, buf_pos);
 
     struct t_twc_chat *chat = twc_chat_new(profile, buffer_name);
     if (chat)

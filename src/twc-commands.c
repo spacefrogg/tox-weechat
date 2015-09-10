@@ -48,7 +48,7 @@ typedef struct
     const bool force;
     struct t_twc_profile *profile;
     char *dns_name;
-    const char *message;
+    char *message;
 } t_twc_friend_add_data;
 
 /**
@@ -279,7 +279,7 @@ twc_cmd_friend_add_cb(void *data, enum t_twc_dns_rc rc, const uint8_t *tox_id)
     const bool force = d->force;
     char *name = d->dns_name;
     struct t_twc_profile *profile = d->profile;
-    const char *message = d->message;
+    char *message = d->message;
     char toxid[TOX_ADDRESS_SIZE * 2 + 1];
 
     switch (rc)
