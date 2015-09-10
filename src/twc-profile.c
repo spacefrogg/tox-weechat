@@ -435,6 +435,19 @@ twc_profile_load(struct t_twc_profile *profile)
                               NULL);
     }
 
+    // register Tox callbacks
+    tox_callback_friend_message(profile->tox, twc_friend_message_callback, profile);
+    tox_callback_friend_connection_status(profile->tox, twc_connection_status_callback, profile);
+    tox_callback_friend_name(profile->tox, twc_name_change_callback, profile);
+    tox_callback_friend_status(profile->tox, twc_user_status_callback, profile);
+    tox_callback_friend_status_message(profile->tox, twc_status_message_callback, profile);
+    tox_callback_friend_request(profile->tox, twc_friend_request_callback, profile);
+    tox_callback_group_invite(profile->tox, twc_group_invite_callback, profile);
+    tox_callback_group_message(profile->tox, twc_group_message_callback, profile);
+    tox_callback_group_action(profile->tox, twc_group_action_callback, profile);
+    tox_callback_group_namelist_change(profile->tox, twc_group_namelist_change_callback, profile);
+    tox_callback_group_title(profile->tox, twc_group_title_callback, profile);
+
     // bootstrap DHT
     // TODO: add count to config
     int bootstrap_node_count = 5;
@@ -458,28 +471,19 @@ twc_profile_load(struct t_twc_profile *profile)
         {
             uint32_t friend_number = friend_numbers[i];
             char *name = twc_get_name_nt(profile->tox, friend_number);
+	    char lname[strlen(name) + 10];
+	    char *l_pos = lname;
+	    l_pos += sprintf(lname, "%s|%d", name, friend_number);
+	    free(name);
             struct t_gui_nick *nick;
             nick = weechat_nicklist_add_nick(profile->buffer,
                                              profile->nicklist,
-                                             name, NULL, NULL, NULL, 0);
-            free(name);
+                                             lname, NULL, NULL, NULL, 0);
             if (!nick)
                 return TWC_RC_ERROR;
         }
     }
 
-    // register Tox callbacks
-    tox_callback_friend_message(profile->tox, twc_friend_message_callback, profile);
-    tox_callback_friend_connection_status(profile->tox, twc_connection_status_callback, profile);
-    tox_callback_friend_name(profile->tox, twc_name_change_callback, profile);
-    tox_callback_friend_status(profile->tox, twc_user_status_callback, profile);
-    tox_callback_friend_status_message(profile->tox, twc_status_message_callback, profile);
-    tox_callback_friend_request(profile->tox, twc_friend_request_callback, profile);
-    tox_callback_group_invite(profile->tox, twc_group_invite_callback, profile);
-    tox_callback_group_message(profile->tox, twc_group_message_callback, profile);
-    tox_callback_group_action(profile->tox, twc_group_action_callback, profile);
-    tox_callback_group_namelist_change(profile->tox, twc_group_namelist_change_callback, profile);
-    tox_callback_group_title(profile->tox, twc_group_title_callback, profile);
     return TWC_RC_OK;
 }
 
@@ -557,6 +561,20 @@ twc_profile_set_online_status(struct t_twc_profile *profile,
                            weechat_prefix("network"),
                            weechat_plugin->name,
                            profile->name);
+	    /*
+	    size_t friend_count = tox_self_get_friend_list_size(profile->tox);
+	    uint32_t friend_numbers[friend_count];
+	    tox_self_get_friend_list(profile->tox, friend_numbers);
+	    for (size_t i = 0; i < friend_count; ++i)
+	    {
+		uint32_t friend_number = friend_numbers[i];
+		TOX_CONNECTION tc
+		    = tox_friend_get_connection_status(profile->tox,
+						       friend_number,
+						       NULL);
+		twc_connection_status_callback(profile->tox, friend_number,
+					       tc, profile);
+	    }*/
         }
         else
         {

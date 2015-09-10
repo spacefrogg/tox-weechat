@@ -18,6 +18,7 @@
  */
 
 #include <string.h>
+#include <stdio.h>
 
 #include <weechat/weechat-plugin.h>
 #include <tox/tox.h>
@@ -79,33 +80,46 @@ twc_connection_status_callback(Tox *tox, uint32_t friend_number,
 {
     struct t_twc_profile *profile = data;
     char *name = twc_get_name_nt(profile->tox, friend_number);
+    char lname[strlen(name) + 10];
     struct t_gui_nick *nick = weechat_nicklist_search_nick(profile->buffer,
                                                            NULL,
                                                            name);
+    struct t_twc_chat *chat = twc_chat_search_friend(profile,
+						     friend_number, false);
+    struct t_gui_buffer *buffer;
+    int online;
+
+    if (chat)
+	buffer = chat->buffer;
+    else
+	buffer = profile->buffer;
+
+    sprintf(lname, "%s|%d", name, friend_number);
 
     // TODO: print in friend's buffer if it exists
-    if (status == 0)
+    switch(status)
     {
-        weechat_printf(profile->buffer,
-                       "%s%s just went offline.",
-                       weechat_prefix("quit"),
-                       name);
-        if (nick)
-            weechat_nicklist_nick_set(profile->buffer,
-                                      nick,
-                                      "visible", "0");
-    }
-    else if (status == 1)
-    {
-        weechat_printf(profile->buffer,
-                       "%s%s just came online.",
-                       weechat_prefix("join"),
-                       name);
-        if (nick)
+	case TOX_CONNECTION_NONE:
+	    weechat_printf(buffer, "%s%s just went offline.",
+			   weechat_prefix("quit"),
+			   name);
+	    weechat_nicklist_nick_set(profile->buffer, nick, "visible", "0");
+	    weechat_nicklist_nick_set(profile->buffer, nick, "prefix", "");
+	    break;
+	case TOX_CONNECTION_TCP:
+	case TOX_CONNECTION_UDP:
+	    online = weechat_nicklist_nick_get_integer(profile->buffer,
+						       nick, "visible");
+	    if (online)
+		break;
+	    weechat_printf(buffer, "%s%s just came online.",
+			   weechat_prefix("join"),
+			   name);
             weechat_nicklist_nick_set(profile->buffer,
                                       nick,
                                       "visible", "1");
-        twc_message_queue_flush_friend(profile, friend_number);
+	    twc_message_queue_flush_friend(profile, friend_number);
+	    break;
     }
     free(name);
 }
