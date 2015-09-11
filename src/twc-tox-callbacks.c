@@ -79,49 +79,57 @@ twc_connection_status_callback(Tox *tox, uint32_t friend_number,
                                TOX_CONNECTION status, void *data)
 {
     struct t_twc_profile *profile = data;
-    char *name = twc_get_name_nt(profile->tox, friend_number);
-    char lname[strlen(name) + 10];
-    struct t_gui_nick *nick = weechat_nicklist_search_nick(profile->buffer,
-                                                           NULL,
-                                                           name);
-    struct t_twc_chat *chat = twc_chat_search_friend(profile,
-						     friend_number, false);
-    struct t_gui_buffer *buffer;
+    char *name = twc_get_screen_name_nt(profile, friend_number);
+    char *short_id = twc_get_friend_id_short(tox, friend_number);
+    struct t_gui_nick *nick;
+    struct t_twc_chat *chat;
     int online;
 
-    if (chat)
-	buffer = chat->buffer;
-    else
-	buffer = profile->buffer;
+    if (!name) {
+        name = twc_get_name_nt(profile->tox, friend_number);
+        weechat_printf(profile->buffer, "No nick with name %s", name);
+        return;
+    }
+    nick = weechat_nicklist_search_nick(profile->buffer, NULL, name);
+    if (!nick)
+    {
+        weechat_printf(profile->buffer, "No nick with name %s", name);
+        return;
+    }
+    chat = twc_chat_search_friend(profile, friend_number, false);
 
-    sprintf(lname, "%s|%d", name, friend_number);
-
-    // TODO: print in friend's buffer if it exists
     switch(status)
     {
-	case TOX_CONNECTION_NONE:
-	    weechat_printf(buffer, "%s%s just went offline.",
-			   weechat_prefix("quit"),
-			   name);
-	    weechat_nicklist_nick_set(profile->buffer, nick, "visible", "0");
-	    weechat_nicklist_nick_set(profile->buffer, nick, "prefix", "");
-	    break;
-	case TOX_CONNECTION_TCP:
-	case TOX_CONNECTION_UDP:
-	    online = weechat_nicklist_nick_get_integer(profile->buffer,
-						       nick, "visible");
-	    if (online)
-		break;
-	    weechat_printf(buffer, "%s%s just came online.",
-			   weechat_prefix("join"),
-			   name);
-            weechat_nicklist_nick_set(profile->buffer,
-                                      nick,
-                                      "visible", "1");
+        case TOX_CONNECTION_NONE:
+            if (chat)
+                weechat_printf(chat->buffer, "%s%s (%s) just went offline.",
+                               weechat_prefix("quit"),
+                               twc_format_nick(chat->buffer, nick), short_id);
+            weechat_printf(profile->buffer, "%s%s (%s) just went offline.",
+                           weechat_prefix("quit"),
+                           twc_format_nick(chat->buffer, nick), short_id);
+            weechat_nicklist_nick_set(profile->buffer, nick, "visible", "0");
+            weechat_nicklist_nick_set(profile->buffer, nick, "prefix", ""); // set prefix according to status
+            break;
+        case TOX_CONNECTION_TCP:
+        case TOX_CONNECTION_UDP:
+            online = weechat_nicklist_nick_get_integer(profile->buffer,
+                                                       nick, "visible");
+            if (online)
+                break;
+            if (chat)
+                weechat_printf(chat->buffer, "%s%s (%s) just came online.",
+                               weechat_prefix("join"),
+                               twc_format_nick(chat->buffer, nick), short_id);
+            weechat_printf(profile->buffer, "%s%s (%s) just came online.",
+                           weechat_prefix("join"),
+                           twc_format_nick(chat->buffer, nick), short_id);
+            weechat_nicklist_nick_set(profile->buffer, nick, "visible", "1");
 	    twc_message_queue_flush_friend(profile, friend_number);
 	    break;
     }
     free(name);
+    free(short_id);
 }
 
 void

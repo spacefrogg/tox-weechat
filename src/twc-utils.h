@@ -24,6 +24,10 @@
 
 #include <tox/tox.h>
 
+#include <weechat/weechat-plugin.h>
+
+#include "twc-profile.h"
+
 void
 twc_hex2bin(const char *hex, size_t size, uint8_t *out);
 
@@ -35,6 +39,9 @@ twc_null_terminate(const uint8_t *str, size_t length);
 
 char *
 twc_get_name_nt(Tox *tox, int32_t friend_number);
+
+char *
+twc_get_screen_name_nt(struct t_twc_profile *profile, uint32_t friend_number);
 
 char *
 twc_get_status_message_nt(Tox *tox, int32_t friend_number);
@@ -54,5 +61,10 @@ twc_uint32_reverse_bytes(uint32_t num);
 unsigned long long
 twc_hash_tox_id(const uint8_t *tox_id);
 
-#endif // TOX_WEECHAT_UTILS_H
+char *
+twc_unique_name(struct t_twc_profile *profile, const uint32_t friend_number);
 
+char *
+twc_format_nick(struct t_gui_buffer *buffer, struct t_gui_nick *nick);
+
+#endif // TOX_WEECHAT_UTILS_H

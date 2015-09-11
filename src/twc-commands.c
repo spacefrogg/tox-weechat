@@ -991,34 +991,25 @@ twc_cmd_names(void *data, struct t_gui_buffer *buffer,
         {
             int online = weechat_nicklist_nick_get_integer(buffer, nick,
 							   "visible");
-	    weechat_printf(buffer, "online: %s", online);
             if (!online && !show_all)
             {
                 weechat_nicklist_get_next_item(buffer, &nicklist, &nick);
                 continue;
             }    
             ++nick_count;
-            char *name = weechat_nicklist_nick_get_string(buffer, nick,
-							  "name");
-	    char *prefix = weechat_nicklist_nick_get_string(buffer, nick,
-							    "prefix");
-	    prefix = prefix ? prefix : "";
-	    char *c_name = weechat_nicklist_nick_get_string(buffer, nick,
-							    "color");
-	    c_name = c_name ? c_name : "";
-	    char *c_prfx = weechat_nicklist_nick_get_string(buffer, nick,
-							    "prefix_color");
-	    c_prfx = c_prfx ? c_prfx : "";
-            if ((buf + buf_size) < (buf_pos + strlen(name) + strlen(prefix)
-				    + strlen(c_name) + strlen(c_prfx)))
+            char *name = twc_format_nick(buffer, nick);
+            if (!name)
+                return WEECHAT_RC_ERROR;
+
+            if ((buf + buf_size) < (buf_pos + strlen(name)))
             {
                 realloc_buf(&buf, &buf_pos, &buf_size);
                 if (!buf)
                     return WEECHAT_RC_ERROR;
                 continue;
             }
-            buf_pos += sprintf(buf_pos, "%s%s%s%s%s ", c_prfx, prefix,
-			       c_name, name, c_res);
+            buf_pos += sprintf(buf_pos, "%s ", name);
+            free(name);
         }
         weechat_nicklist_get_next_item(buffer, &nicklist, &nick);
     }

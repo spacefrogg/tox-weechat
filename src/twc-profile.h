@@ -56,6 +56,7 @@ struct t_twc_profile
     struct t_hook *tox_do_timer;
 
     struct t_gui_nick_group *nicklist;
+    char **screen_names;
     struct t_twc_list *chats;
     struct t_twc_list *friend_requests;
     struct t_twc_list *group_chat_invites;
@@ -115,6 +116,9 @@ twc_profile_refresh_online_status(struct t_twc_profile *profile);
 
 void
 twc_profile_set_online_status(struct t_twc_profile *profile, bool online);
+
+char **
+twc_profile_screen_names_list(struct t_twc_profile *profile);
 
 struct t_twc_profile *
 twc_profile_search_name(const char *name);

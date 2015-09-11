@@ -86,12 +86,34 @@ twc_get_name_nt(Tox *tox, int32_t friend_number)
 
     if ((err != TOX_ERR_FRIEND_QUERY_OK) ||
         (length == 0))
-      return twc_get_friend_id_short(tox, friend_number);
+        return twc_get_friend_id_short(tox, friend_number);
 
     uint8_t name[length];
 
     tox_friend_get_name(tox, friend_number, name, &err);
     return twc_null_terminate(name, length);
+}
+
+/**
+ * Get the null-terminated screen name of a Tox friend.
+ */
+char *
+twc_get_screen_name_nt(struct t_twc_profile *profile, uint32_t friend_number)
+{
+    size_t friend_count = tox_self_get_friend_list_size(profile->tox);
+    uint32_t friend_numbers[friend_count];
+
+    if (!profile->screen_names)
+        return twc_get_name_nt(profile->tox, friend_number);
+
+    tox_self_get_friend_list(profile->tox, friend_numbers);
+
+    for (size_t i = 0; i < friend_count; ++i)
+    {
+        if (friend_number == friend_numbers[i])
+            return strdup(profile->screen_names[i]);
+    }
+    return NULL;
 }
 
 /**
@@ -105,9 +127,9 @@ twc_get_status_message_nt(Tox *tox, int32_t friend_number)
 
     if ((err != TOX_ERR_FRIEND_QUERY_OK) ||
         (length == SIZE_MAX)) {
-      char *msg = malloc(1);
-      *msg = 0;
-      return msg;
+        char *msg = malloc(1);
+        *msg = 0;
+        return msg;
     }
 
     uint8_t message[length];
@@ -160,7 +182,7 @@ twc_get_friend_id_short(Tox *tox, int32_t friend_number)
 
     // return a zero public key on failure
     if (err != TOX_ERR_FRIEND_GET_PUBLIC_KEY_OK)
-      memset(client_id, 0, TOX_PUBLIC_KEY_SIZE);
+        memset(client_id, 0, TOX_PUBLIC_KEY_SIZE);
 
     twc_bin2hex(client_id,
                 short_id_length / 2,
@@ -197,4 +219,51 @@ twc_hash_tox_id(const uint8_t *tox_id)
         hash ^= (hash << 5) + (hash >> 2) + tox_id[i];
 
     return hash;
+}
+
+char *
+twc_format_nick(struct t_gui_buffer *buffer, struct t_gui_nick *nick)
+{
+    char *c_res = weechat_color("reset");
+    const char *c_pfx;
+    const char *name;
+    const char *pfx;
+    char *str;
+
+    if (!nick || !buffer)
+        return NULL;
+
+    c_pfx = weechat_nicklist_nick_get_string(buffer, nick, "prefix_color");
+    pfx = weechat_nicklist_nick_get_string(buffer, nick, "prefix");
+    name = weechat_nicklist_nick_get_string(buffer, nick, "name");
+    str = (char *)malloc(strlen(c_res) + strlen(c_pfx) + strlen(name)
+                         + strlen(pfx) + 1);
+
+    if (!str)
+        return NULL;
+
+    if (strlen(pfx) > 0)
+        sprintf(str, "%s%s%s%s", c_pfx, pfx, c_res, name);
+    else
+        sprintf(str, "%s", name);
+    return str;
+}
+
+char *
+twc_unique_name(struct t_twc_profile *profile, const uint32_t friend_number)
+{
+    if (!profile)
+        return NULL;
+
+    char *name = twc_get_name_nt(profile->tox, friend_number);
+    struct t_gui_nick *nick = weechat_nicklist_search_nick(profile->buffer, NULL, name);
+    while (nick)
+    {
+        name = (char *)realloc(name, strlen(name) + 2);
+        if (!name)
+            return NULL;
+        strcat(name, "_");
+        nick = weechat_nicklist_search_nick(profile->buffer, NULL, name);
+    }
+    return name;
 }

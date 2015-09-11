@@ -44,6 +44,9 @@
 struct t_twc_list *twc_profiles = NULL;
 struct t_config_option *twc_config_profile_default[TWC_PROFILE_NUM_OPTIONS];
 
+static void
+twc_screen_names_free_list(struct t_twc_profile *profile);
+
 /**
  * Get a profile's expanded data path, replacing:
  *  - %h with WeeChat home
@@ -178,6 +181,7 @@ twc_profile_new(const char *name)
 
     profile->chats = twc_list_new();
     profile->nicklist = NULL;
+    profile->screen_names = NULL;
     profile->friend_requests = twc_list_new();
     profile->group_chat_invites = twc_list_new();
     profile->message_queues = weechat_hashtable_new(32,
@@ -296,17 +300,9 @@ twc_profile_load(struct t_twc_profile *profile)
     {
         // create main buffer
 	if (TWC_PROFILE_OPTION_BOOLEAN(profile, TWC_PROFILE_OPTION_CHAT_IN_PROFILE))
-	{
 	    profile->buffer = weechat_buffer_new(profile->name,
 						 twc_profile_buffer_input_callback, profile,
 						 twc_profile_buffer_close_callback, profile);
-	    if (!(profile->buffer))
-		return TWC_RC_ERROR;
-	    profile->nicklist = weechat_nicklist_add_group(profile->buffer,
-                                                           NULL, "friends", NULL, 0);
-	    if (!(profile->nicklist))
-                return TWC_RC_ERROR;
-        }
 	else
 	    profile->buffer = weechat_buffer_new(profile->name,
 						 NULL, NULL,
@@ -457,31 +453,11 @@ twc_profile_load(struct t_twc_profile *profile)
     // start tox_iterate loop
     twc_do_timer_cb(profile, 0);
 
-    // register all known friends in nicklist
-    if (TWC_PROFILE_OPTION_BOOLEAN(profile, TWC_PROFILE_OPTION_CHAT_IN_PROFILE))
+    // register all known friends in profile buffer's nicklist
+    if (!twc_profile_screen_names_list(profile))
     {
-        size_t friend_count = tox_self_get_friend_list_size(profile->tox);
-        uint32_t friend_numbers[friend_count];
-        if (!(profile->nicklist))
-            return TWC_RC_ERROR;
-
-        tox_self_get_friend_list(profile->tox, friend_numbers);
-
-        for (size_t i = 0; i < friend_count; ++i)
-        {
-            uint32_t friend_number = friend_numbers[i];
-            char *name = twc_get_name_nt(profile->tox, friend_number);
-	    char lname[strlen(name) + 10];
-	    char *l_pos = lname;
-	    l_pos += sprintf(lname, "%s|%d", name, friend_number);
-	    free(name);
-            struct t_gui_nick *nick;
-            nick = weechat_nicklist_add_nick(profile->buffer,
-                                             profile->nicklist,
-                                             lname, NULL, NULL, NULL, 0);
-            if (!nick)
-                return TWC_RC_ERROR;
-        }
+        weechat_printf(profile->buffer, "ERROR generating names list");
+        return TWC_RC_ERROR;
     }
 
     return TWC_RC_OK;
@@ -512,6 +488,12 @@ twc_profile_unload(struct t_twc_profile *profile)
                        path);
         free(path);
     }
+
+    // unload screen names
+    twc_screen_names_free_list(profile);
+    profile->screen_names = NULL;
+    profile->nicklist = NULL;
+
 
     // stop Tox timer
     weechat_unhook(profile->tox_do_timer);
@@ -561,20 +543,6 @@ twc_profile_set_online_status(struct t_twc_profile *profile,
                            weechat_prefix("network"),
                            weechat_plugin->name,
                            profile->name);
-	    /*
-	    size_t friend_count = tox_self_get_friend_list_size(profile->tox);
-	    uint32_t friend_numbers[friend_count];
-	    tox_self_get_friend_list(profile->tox, friend_numbers);
-	    for (size_t i = 0; i < friend_count; ++i)
-	    {
-		uint32_t friend_number = friend_numbers[i];
-		TOX_CONNECTION tc
-		    = tox_friend_get_connection_status(profile->tox,
-						       friend_number,
-						       NULL);
-		twc_connection_status_callback(profile->tox, friend_number,
-					       tc, profile);
-	    }*/
         }
         else
         {
@@ -585,6 +553,59 @@ twc_profile_set_online_status(struct t_twc_profile *profile,
                            profile->name);
         }
     }
+}
+
+/**
+ * Generate a fresh screen_names list from the current friends list.
+ * Also regenerates the nicklist in the profile's buffer.
+ */
+char **
+twc_profile_screen_names_list(struct t_twc_profile *profile)
+{
+    if (!TWC_PROFILE_OPTION_BOOLEAN(profile, TWC_PROFILE_OPTION_CHAT_IN_PROFILE)
+        || !profile->tox || !profile->buffer)
+        return NULL;
+
+    if (profile->screen_names)
+    {
+        if (!profile->nicklist)
+            return NULL;
+        twc_screen_names_free_list(profile);
+        weechat_nicklist_remove_group(profile->buffer, profile->nicklist);
+        profile->nicklist = weechat_nicklist_add_group(profile->buffer,
+                                                       NULL, "friends", NULL, 0);
+        if (!profile->nicklist)
+            return NULL;
+    }
+
+    size_t friend_count = tox_self_get_friend_list_size(profile->tox);
+    uint32_t friend_numbers[friend_count];
+
+    profile->screen_names = (char **)malloc(sizeof(char*)*friend_count);
+    if (!profile->screen_names)
+        return NULL;
+
+    tox_self_get_friend_list(profile->tox, friend_numbers);
+
+    for (size_t i = 0; i < friend_count; ++i)
+    {
+        uint32_t friend_number = friend_numbers[i];
+        char *name = twc_unique_name(profile, friend_number);
+        struct t_gui_nick *nick;
+        nick = weechat_nicklist_add_nick(profile->buffer,
+                                         profile->nicklist,
+                                         name, "", "", "", 0);
+        if (!nick)
+        {
+            twc_screen_names_free_list(profile);
+            profile->screen_names = NULL;
+            weechat_nicklist_remove_group(profile->buffer, profile->nicklist);
+            profile->nicklist = NULL;
+            return NULL;
+        }
+        profile->screen_names[i] = name;
+    }
+    return profile->screen_names;
 }
 
 /**
@@ -649,6 +670,20 @@ twc_profile_delete(struct t_twc_profile *profile,
 }
 
 /**
+ * Delete the list of screen names.
+ */
+static void
+twc_screen_names_free_list(struct t_twc_profile *profile)
+{
+    if (!profile || !profile->screen_names || !profile->tox)
+        return;
+    for (size_t i = 0; i < tox_self_get_friend_list_size(profile->tox); --i)
+        if (profile->screen_names[i])
+            free(profile->screen_names[i]);
+    free(profile->screen_names);
+}
+
+/**
  * Frees a profile. Unloads and frees all variables.
  */
 void
@@ -689,4 +724,3 @@ twc_profile_free_all()
 
     free(twc_profiles);
 }
-
